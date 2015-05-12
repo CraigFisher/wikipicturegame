@@ -1,0 +1,193 @@
+import requests
+import random
+# import cProfile
+import string
+# IMPORTANT!  POSSIBLY MAKE SURE PICTURES ARE G-RATED
+# USE REGEX TO EXCLUDE BS CATEGORIES
+# TODO: USE QUERY PATTERN BELOW IN CASE MANY PICTURES ARE ACCESSED
+#       WITHOUT FINDING A VALID THUMBNAIL
+#       (FOR LATER, IF QUERYING AN ENTIRE CATEGORY OF THINGS)
+
+
+_DEBUG = False
+_QUERY_MAX = 500
+_THUMBNAIL_QUERY_MAX = 50
+_WIKIPEDIA_ENDPOINT = 'http://en.wikipedia.org/w/api.php?'
+
+
+def debugIndex(size, index):
+    print("size", size)
+    print("index", index)
+
+
+def query(request, limitParam, selectionNumber):
+    request['action'] = 'query'
+    request['format'] = 'json'
+    lastContinue = {'continue': ''}
+
+    if selectionNumber > _QUERY_MAX:
+        request[limitParam] = _QUERY_MAX
+    else:
+        request[limitParam] = selectionNumber
+    resultsRemaining = selectionNumber
+
+    while resultsRemaining > 0:
+        # Clone original request
+        req = request.copy()
+        # Modify it with the values returned in the 'continue' section of the last result.
+        req.update(lastContinue)
+        # Call API
+        result = requests.get('http://en.wikipedia.org/w/api.php', params=req).json()
+        resultsRemaining -= _QUERY_MAX
+
+        if 'error' in result:
+            raise ValueError("Failed to retrieve category pages!")
+        if 'warnings' in result:
+            print(result['warnings'])
+        if 'query' in result:
+            yield result['query']
+        if 'continue' not in result:
+            break
+        lastContinue = result['continue']
+
+
+
+# prop=pageimages|info&inprop=url&format=json&piprop=original&pilimit=max&
+# generator=categorymembers&gcmtitle=Category%3ACalifornia_counties&gcmprop=ids%7Ctitle%7Csortkey%7Csortkeyprefix%7Ctype%7Ctimestamp&gcmlimit=100
+
+
+def generateQuestion(category):
+    request = {'prop': 'pageimages|info', 'inprop': 'url', 'piprop': 'original', 'pilimit': _THUMBNAIL_QUERY_MAX,
+               'generator': 'categorymembers', 'gcmprop': 'ids', 'gcmnamespace': 0,
+               'gcmsort': 'sortkey'}
+
+    startingCharacterIndex = random.randint(0, 25)
+    # If character is in first half of alphabet,
+    # return results in ascending order and visa versa
+    if startingCharacterIndex <= 12:
+        request['gcmdir'] = 'asc'
+    else:
+        request['gcmdir'] = 'desc'
+    startingCharacter = string.ascii_lowercase[startingCharacterIndex]
+    request['gcmtitle'] = category
+    request['gcmstartsortkeyprefix'] = startingCharacter
+
+    response_1 = next(query(request, 'gcmlimit', _QUERY_MAX))  # Only first result set is used
+    pages_1 = response_1['pages']
+
+    thumbnail = ""
+    keys_1 = list(pages_1.keys())
+    random.shuffle(keys_1)
+    answerKey = ""
+    for key in keys_1:
+        try:
+            thumbnail = pages_1[key]['thumbnail']['original']
+            answerTitle = pages_1[key]['title']
+            answerUrl = pages_1[key]['fullurl']
+            answerKey = key
+            break
+        except KeyError:
+            pass
+
+    # A second query may be required
+    if not thumbnail or len(pages_1) < 5:
+
+        # If a thumbnail hasn't been found among the first 500 pages, give up.
+        if not thumbnail and len(pages_1) >= 500:
+            raise ValueError("Could not find thumbnail images for this category.")
+
+        # Otherwise, search again from the same starting letter in the opposite direction
+        if request['gcmdir'] == 'asc':
+            request['gcmdir'] = 'desc'
+        else:
+            request['gcmdir'] = 'asc'
+
+        # Send the second query.
+        response_2 = next(query(request, 'gcmlimit', _QUERY_MAX), None)  # Only first result set is used
+        if response_2 is None:
+            raise ValueError("Could not find thumbnail images for this category.")
+        pages_2 = response_2['pages']
+
+        # This category does not have enough pages to create a question.
+        if len(pages_1) + len(pages_2) < 5:
+            raise ValueError("Category does not have enough pages to create a question.")
+
+        if not thumbnail:
+            keys_2 = list(pages_2.keys())
+            random.shuffle(keys_2)
+            for key in keys_2:
+                try:
+                    thumbnail = pages_2[key]['thumbnail']['original']
+                    answerTitle = pages_2[key]['title']
+                    answerUrl = pages_2[key]['fullurl']
+                    answerKey = key
+                    break
+                except KeyError:
+                    pass
+
+    # If thumbnail has still not been found, give up.
+    if not thumbnail:
+        raise ValueError("Could not find thumbnail images for this category.")
+
+    question = {'answerKey': answerKey, 'thumbnail': thumbnail, 'answerUrl': answerUrl}
+
+    rightAnswer = {}
+    rightAnswer['title'] = answerTitle
+    rightAnswer['url'] = answerUrl
+    rightAnswer['key'] = answerKey
+
+    choices = []
+    choices.append(rightAnswer)
+    choiceCount = 1
+
+    # Lastly, gather 4 other random pages from the same category to use as
+    #       the wrong answers.
+    for key in keys_1:
+        if key == answerKey:
+            continue
+        title = pages_1[key]['title']
+        url = pages_1[key]['fullurl']
+        answer = {'title': title, 'url': url, 'key': key}
+        choices.append(answer)
+
+        choiceCount += 1
+        if choiceCount >= 5:
+            break
+
+    if choiceCount < 5:
+        for key in keys_2:
+            if key == answerKey:
+                break
+            title = pages_1[key]['title']
+            url = pages_1[key]['fullurl']
+            answer = {'title': title, 'url': url, 'key': key}
+            choices.append(answer)
+
+            choiceCount += 1
+            if choiceCount > 5:
+                break
+
+    random.shuffle(choices)
+    question['choices'] = choices
+    return question
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
