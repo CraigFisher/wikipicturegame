@@ -1,5 +1,4 @@
-# secret_key file
-*/secret_key.py
+# sensitive local settings
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

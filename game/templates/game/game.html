@@ -17,7 +17,7 @@
 {% if question %}
 {% csrf_token %}
 <div class="question-square">
-    <h1>Question 1</h1>
+    <h1 id="questionHeader">Question 1</h1>
     <a href="{{ question.answerUrl }}">
     <img src="{{ question.thumbnail }}">
     </a>
@@ -27,12 +27,13 @@
         <div class="choice">
             <label>
             <input type="radio" name="wikichoice" value="{{ choice.key }}" />
-            {{ choice.title }}</label>
+            {{ choice.title }} <a href="{{ choice.url }}">Link</a></label>
         </div>
     {% endfor %}
     </div>
     <br>
-    <button id="submitAnswer">Submit Answer</button>
+    <button id="submitButton">Submit Answer</button>
+    <button id="nextQuestion">Next Question</button>
 </div>
 {% endif %}
 

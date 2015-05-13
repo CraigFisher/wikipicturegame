@@ -129,7 +129,8 @@ def generateQuestion(category):
     if not thumbnail:
         raise ValueError("Could not find thumbnail images for this category.")
 
-    question = {'answerKey': answerKey, 'thumbnail': thumbnail, 'answerUrl': answerUrl}
+    question = {'answerKey': answerKey, 'thumbnail': thumbnail,
+                'answerUrl': answerUrl, 'category': category}
 
     rightAnswer = {}
     rightAnswer['title'] = answerTitle
@@ -170,24 +171,3 @@ def generateQuestion(category):
     random.shuffle(choices)
     question['choices'] = choices
     return question
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

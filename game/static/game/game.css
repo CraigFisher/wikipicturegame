@@ -23,6 +23,11 @@
     display: inline-block;
 }
 
+.choice-square a {
+    font-style: italic;
+    display: none;
+}
+
 .question-square .choice {
     font-size: 22px;
     font-weight: bold;
@@ -32,4 +37,16 @@
 .question-square button {
     margin: 8px;
     font-size: 20px;
+}
+
+.correct {
+    color: lime;
+}
+
+.incorrect {
+    color: red;
+}
+
+#nextQuestion {
+    display: none;
 }

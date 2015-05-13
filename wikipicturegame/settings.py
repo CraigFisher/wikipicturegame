@@ -12,28 +12,13 @@ https://docs.djangoproject.com/en/1.7/ref/settings/
 import os
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/1.7/howto/deployment/checklist/
-
-def generate_secret_key(fp):
-    from django.utils.crypto import get_random_string
-    chars = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)'
-    key = get_random_string(50, chars)
-    file = open(fp, 'w')
-    file.write('SECRET_KEY = "{0}"'.format(key))
-    file.close()
-
-# Import secret key from file or generate one if it does not already exist.
-try:
-    from wikipicturegame.secret_key import SECRET_KEY
-except ImportError:
-    SETTINGS_DIR = os.path.abspath(os.path.dirname(__file__))
-    generate_secret_key(os.path.join(SETTINGS_DIR, 'secret_key.py'))
-    from wikipicturegame.secret_key import SECRET_KEY
+SECRET_KEY = os.environ['WIKIPICTUREGAME_SECRET_KEY']
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+if os.environ['WIKIPICTUREGAME_DEBUG'] == 'True':
+    DEBUG = True
+else:
+    DEBUG = False
 
 TEMPLATE_DEBUG = True
 
@@ -70,15 +55,18 @@ WSGI_APPLICATION = 'wikipicturegame.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/1.7/ref/settings/#databases
 
-DATABASES = {
-    'default': {
+db_default = {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
         'NAME': 'wikipicturegame_db',
-        'USER': 'craig',
-        'PASSWORD': '',
         'HOST': '127.0.0.1',
         'PORT': '5432',
     }
+
+db_default['USER'] = os.environ['WIKIPICTUREGAME_DB_USER']
+db_default['PASSWORD'] = os.environ['WIKIPICTUREGAME_DB_PASSWORD']
+
+DATABASES = {
+    'default': db_default
 }
 
 # Internationalization
@@ -98,4 +86,12 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.7/howto/static-files/
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_ROOT = 'staticfiles'
 STATIC_URL = '/static/'
+
+STATICFILES_DIRS = (
+    os.path.join(BASE_DIR, 'static'),
+)
+
+STATICFILES_STORAGE = 'whitenoise.django.GzipManifestStaticFilesStorage'

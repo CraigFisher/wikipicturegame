@@ -6,6 +6,13 @@ import json
 
 def home(request):
     if request.method == "GET":
+        if request.is_ajax():
+            data = json.loads(request.body.decode('utf-8'))
+            category = data['category']
+            question = generateQuestion(category)
+            data = json.dumps(question)
+            return HttpResponse(data, content_type='application/json')
+
         # category = 'Category:A_priori'
         # category = 'Category:1955_deaths'
         category = 'Category:California_counties'
@@ -26,12 +33,3 @@ def home(request):
             context['question'] = question
 
         return render(request, 'game/game.html', context)
-
-    if request.method == "POST":
-        if request.is_ajax():
-            choiceId = request.body
-            responseDict = {'dummyReponseWithId': choiceId}
-            import pdb; pdb.set_trace()  # breakpoint 91094231 //
-            data = json.dumps(responseDict)
-            import pdb; pdb.set_trace()  # breakpoint fa8708bb //
-            return HttpResponse(data, mimetype='application/json')
