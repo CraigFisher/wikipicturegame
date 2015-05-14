@@ -20,9 +20,14 @@ if os.environ['WIKIPICTUREGAME_DEBUG'] == 'True':
 else:
     DEBUG = False
 
-TEMPLATE_DEBUG = True
+TEMPLATE_DEBUG = False
 
-ALLOWED_HOSTS = []
+
+ADMINS = (('craig', 'craigfisher256@gmail.com'))
+
+EMAIL_HOST = 'localhost'
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' 
 
 # Application definition
 
@@ -92,11 +97,11 @@ ALLOWED_HOSTS = ['*']
 
 # Static asset configuration
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_ROOT = 'staticfiles'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATIC_URL = '/static/'
 
 STATICFILES_DIRS = (
     os.path.join(BASE_DIR, 'static'),
 )
 
-STATICFILES_STORAGE = 'whitenoise.django.GzipManifestStaticFilesStorage'
+# STATICFILES_STORAGE = 'whitenoise.django.GzipManifestStaticFilesStorage'
