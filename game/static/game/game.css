@@ -11,21 +11,31 @@
 .question-square img {
     max-width: 430px;
     height: auto;
+    visibility: hidden;
 }
 
 .question-square h1 {
-    font-size: 26px;
+    font-size: 27px;
+}
+
+.question-square h2 {
+    font-size: 24px;
 }
 
 .question-square .choice-section {
     padding-top: 2px;
     text-align: left;
     display: inline-block;
+    visibility: hidden;
 }
 
-.choice-square a {
+.question-square .choice-section a {
     font-style: italic;
     display: none;
+}
+
+.question-square .choice-section a:visited {
+    color: #00E;
 }
 
 .question-square .choice {
@@ -40,13 +50,17 @@
 }
 
 .correct {
-    color: lime;
+    color: green;
 }
 
 .incorrect {
     color: red;
 }
 
-#nextQuestion {
+#nextQuestionButton {
+    display: none;
+}
+
+#newGameButton {
     display: none;
 }

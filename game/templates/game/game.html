@@ -3,38 +3,33 @@
 
 {% block child_static %}
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
-    <script src="{% static 'game/game.js' %}"></script>    
+    <script src="{% static 'base/ajax_csrf.js' %}"></script>
+    <script src="{% static 'game/game.js' %}"></script>
     <link rel="stylesheet" type="text/css" href="{% static 'game/game.css' %}"/>
 {% endblock child_static %}
 
 {% block content %}
 
-{% if debugText %}
-    <p>{{ debugText }}</p>    
-{% endif %}
-
-
-{% if question %}
 {% csrf_token %}
 <div class="question-square">
-    <h1 id="questionHeader">Question 1</h1>
-    <a href="{{ question.answerUrl }}">
-    <img src="{{ question.thumbnail }}">
-    </a>
-
+    <h1 id="questionHeader">Question <span id="questionCount">1</span></h1>
+    <h2>Correct: <span id="correct">0</span> | Wrong: <span id="wrong">0</span></h2>
+    <div>
+    <img id="thumbnail" src="">
+    </div>
     <div class="choice-section">
-    {% for choice in question.choices %}
+        {% for x in '01234' %}
         <div class="choice">
-            <label>
-            <input type="radio" name="wikichoice" value="{{ choice.key }}" />
-            {{ choice.title }} <a href="{{ choice.url }}">Link</a></label>
+            <input id="choice-{{ x }}" type="radio" name="wikichoice" value="#" />
+            <label for="choice-{{ x }}">a</label>
+            <a href="#">Link</a>
         </div>
-    {% endfor %}
+        {% endfor %}    
     </div>
     <br>
     <button id="submitButton">Submit Answer</button>
-    <button id="nextQuestion">Next Question</button>
+    <button id="nextQuestionButton">Next Question</button>
+    <button id="newGameButton">New Game?</button>
 </div>
-{% endif %}
 
 {% endblock content %}

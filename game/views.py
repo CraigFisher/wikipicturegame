@@ -6,30 +6,33 @@ import json
 
 def home(request):
     if request.method == "GET":
-        if request.is_ajax():
-            data = json.loads(request.body.decode('utf-8'))
-            category = data['category']
-            question = generateQuestion(category)
-            data = json.dumps(question)
-            return HttpResponse(data, content_type='application/json')
+
+        # TODO: NO LONGER HARDCODE CATEGORY
 
         # category = 'Category:A_priori'
         # category = 'Category:1955_deaths'
-        category = 'Category:California_counties'
+        # category = 'Category:California_counties'
         # category = 'Category:Basic_concepts_in_infinite_set_theory'
         # category = 'Category:Compactness_(mathematics)'
-        debugText = ""
-        question = {}
+        # debugText = ""
+        # question = {}
 
-        try:
-            question = generateQuestion(category)
-        except ValueError as e:
-            debugText = str(e)
+        # try:
+            # question = generateQuestion(category)
+        # except ValueError as e:
+            # debugText = str(e)
 
-        context = {'question': question}
-        if debugText:
-            context['debugText'] = debugText
-        if question:
-            context['question'] = question
-
+        context = {}
         return render(request, 'game/game.html', context)
+
+    if request.method == "POST":
+        if request.is_ajax():
+            data = json.loads(request.body.decode('utf-8'))
+            category = data['category']
+            try:
+                question = generateQuestion(category)
+                data = json.dumps(question)
+            except ValueError as e:
+                print(str(e))
+                raise Exception
+            return HttpResponse(data, content_type='application/json')
