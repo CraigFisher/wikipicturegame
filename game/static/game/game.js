@@ -1,7 +1,16 @@
 "use strict"
 
+function WikipediaClient() {
+
+
+
+}
 
 function WikipediaGame() {
+    var category = 'Category:1955_deaths'; //TODO: NO LONGER HARDCODE THIS
+    var gameSetup = false;
+    var MAX_TURNS = 10;
+
     var turnCount;
     var correctCount;
     var wrongCount;
@@ -9,10 +18,6 @@ function WikipediaGame() {
     var curQuestion;
     var nextQuestion;
     var nextImage = new Image();
-
-    var gameSetup = false;
-    var category = 'Category:California_counties'; //TODO: NO LONGER HARDCODE THIS
-    var MAX_TURNS = 10;
 
     var submitButton = $('#submitButton');
     var nextQuestionButton = $('#nextQuestionButton');
@@ -52,17 +57,14 @@ function WikipediaGame() {
                 return;
             }
             submitButton.hide();
-            nextQuestionButton.css('visibility', 'hidden');
+            nextQuestionButton.prop('disabled', true);
             nextQuestionButton.show();
 
             checkAnswers(choiceId);
             getNextQuestion();
-            nextQuestionButton.css('visibility', 'visible');
-
             if (turnCount >= MAX_TURNS) {
                 nextQuestionButton.hide();
                 newGameButton.show();
-                console.log('adfsad');
                 newGameButton.click(function(event) {
                     that.newGame();
                 });
@@ -94,11 +96,11 @@ function WikipediaGame() {
             data: JSON.stringify(data),
             type: 'POST',
             success: function(result) {
+                console.log('...question retrieved.');                
                 nextQuestion = result;
-                console.log('...question retrieved.');
+                nextImage.src = nextQuestion['thumbnail']; //preload image
+                nextQuestionButton.prop('disabled', false);
 
-                //preload image
-                nextImage.src = nextQuestion['thumbnail'];
                 if (setImmediately) {
                     curQuestion = nextQuestion;
                     setNextQuestion();
@@ -116,10 +118,10 @@ function WikipediaGame() {
 
         console.log('Setting next question');
         thumbnail.attr('src', nextImage.src);
-        thumbnail.load(function() {
-            choiceDiv.css('visibility', 'visible');
-            thumbnail.css('visibility', 'visible');            
-        });
+            
+        console.log('Setting question visible.')
+        choiceDiv.css('visibility', 'visible');
+        thumbnail.css('visibility', 'visible');
 
         $('#questionHeader').text('Question ' + turnCount);
 
