@@ -1,11 +1,15 @@
 "use strict"
 
+
 function WikipediaGame() {
     var turnCount;
     var correctCount;
     var wrongCount;
+
     var curQuestion;
     var nextQuestion;
+    var nextImage = new Image();
+
     var gameSetup = false;
     var category = 'Category:California_counties'; //TODO: NO LONGER HARDCODE THIS
     var MAX_TURNS = 10;
@@ -92,6 +96,9 @@ function WikipediaGame() {
             success: function(result) {
                 nextQuestion = result;
                 console.log('...question retrieved.');
+
+                //preload image
+                nextImage.src = nextQuestion['thumbnail'];
                 if (setImmediately) {
                     curQuestion = nextQuestion;
                     setNextQuestion();
@@ -108,7 +115,7 @@ function WikipediaGame() {
         thumbnail.css('visibility', 'hidden');
 
         console.log('Setting next question');
-        thumbnail.attr('src', curQuestion['thumbnail']);
+        thumbnail.attr('src', nextImage.src);
         thumbnail.load(function() {
             choiceDiv.css('visibility', 'visible');
             thumbnail.css('visibility', 'visible');            

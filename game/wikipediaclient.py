@@ -2,15 +2,10 @@ import requests
 import random
 # import cProfile
 import string
-# IMPORTANT!  POSSIBLY MAKE SURE PICTURES ARE G-RATED
-# USE REGEX TO EXCLUDE BS CATEGORIES
-# TODO: USE QUERY PATTERN BELOW IN CASE MANY PICTURES ARE ACCESSED
-#       WITHOUT FINDING A VALID THUMBNAIL
-#       (FOR LATER, IF QUERYING AN ENTIRE CATEGORY OF THINGS)
 
 
 _DEBUG = False
-_QUERY_MAX = 500
+_QUERY_MAX = 500  # Maximum results for regular user per individual query, as specified by Wikipedia.
 _THUMBNAIL_QUERY_MAX = 50
 _WIKIPEDIA_ENDPOINT = 'http://en.wikipedia.org/w/api.php?'
 
@@ -49,11 +44,6 @@ def query(request, limitParam, selectionNumber):
         if 'continue' not in result:
             break
         lastContinue = result['continue']
-
-
-
-# prop=pageimages|info&inprop=url&format=json&piprop=original&pilimit=max&
-# generator=categorymembers&gcmtitle=Category%3ACalifornia_counties&gcmprop=ids%7Ctitle%7Csortkey%7Csortkeyprefix%7Ctype%7Ctimestamp&gcmlimit=100
 
 
 def generateQuestion(category):
