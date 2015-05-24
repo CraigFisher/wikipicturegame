@@ -81,7 +81,6 @@ def generateQuestion(category):
 
     # A second query may be required
     if not thumbnail or len(pages_1) < 5:
-
         # If a thumbnail hasn't been found among the first 500 pages, give up.
         if not thumbnail and len(pages_1) >= 500:
             raise ValueError("Could not find thumbnail images for this category.")

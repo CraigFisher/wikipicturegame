@@ -1,16 +1,24 @@
+body {
+    text-align: center;
+}
+
 .question-square {
-    width: 500px;
+    min-width: 280px;
     /*min-height: 500px;*/
     margin: 0px auto;
-    padding: 10px;
+    /*padding: 34px;*/
     /*border-radius: 1px;*/
     text-align: center;
-    border: 2px solid black
+    border: 2px solid black;
+    display: inline-block;
 }
 
 .question-square img {
-    max-width: 430px;
-    height: auto;
+    /*max-width: 430px;*/
+    /*height: auto;*/
+    max-height: 360px;
+    margin: 0px 38px;
+    width: auto;
     visibility: hidden;
 }
 
@@ -27,6 +35,7 @@
     text-align: left;
     display: inline-block;
     visibility: hidden;
+    margin: 0px 14px;
 }
 
 .question-square .choice-section a {
@@ -45,7 +54,8 @@
 }
 
 .question-square button {
-    margin: 8px;
+    margin-top: 6px;
+    margin-bottom: 16px;
     font-size: 20px;
 }
 
