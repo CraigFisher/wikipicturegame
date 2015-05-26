@@ -44,8 +44,9 @@ function WikipediaClient() {
                     onSuccess(response.query);
                 } else {
                     var error = {
-                        name: "QueryError",
-                        message: "Failed to retrieve pages!"
+                        name: "query error",
+                        message: "Failed to retrieve pages!",
+                        category: request.gcmtitle,
                     };
                     onFailure(error);
                 }
@@ -130,8 +131,9 @@ function WikipediaClient() {
                 // If a thumbnail hasn't been found among the first 500 pages, give up.
                 if (!question.thumbnail.src && keys_1.length >= 500) {
                     var error = { 
-                        name: "CategoryError",
-                        error: "Could not find thumbnail images for this category."
+                        name: "handleFirstQuery error",
+                        error: "Could not find thumbnail images for this category.",
+                        category: category
                     };
                     onFailure(error);
                 } else {
@@ -158,8 +160,9 @@ function WikipediaClient() {
                 //      (By this point, either the entire category
                 //      has been searched or at least 1000 of its pages.)
                 var error = { 
-                    name: "CategoryError",
-                    error: "Could not find thumbnail images for this category." 
+                    name: "handleSecondQuery error",
+                    error: "Could not find thumbnail images for this category." ,
+                    category: category
                 };
                 onFailure(error);  
             }
@@ -177,8 +180,6 @@ function WikipediaClient() {
                     if (filter.containsObscenity(pages[key].title)) {
                         console.log("Title: '" + pages[key].title + "' rejected due to possible innappropriate content.");
                         continue;
-                    } else {
-                        console.log("Choosing title: "+ pages[key].title);
                     }
 
                     //preload image immediately
@@ -248,7 +249,7 @@ function WikipediaClient() {
 function WikipediaGame() {
     var wikiClient = new WikipediaClient();
 
-    var category = 'Category:California_counties'; //TODO: NO LONGER HARDCODE THIS
+    var CATEGORY = 'Category:California_counties'; //TODO: NO LONGER HARDCODE THIS
     // var category = 'Category:1955_deaths'; //TODO: NO LONGER HARDCODE THIS
 
     var gameSetup = false;
@@ -258,41 +259,103 @@ function WikipediaGame() {
     var correctCount;
     var wrongCount;
 
+    var imageQueue;
+    var questionQueue;
+    var failingCategories;
+
+    var questionsLoaded;
+    var questionLoadFailures;
+    var nextQuestionBlocked;
+
     var curQuestion;
     var nextQuestion;
-    var nextImage = new Image();
+    var nextImage;
 
     var submitButton = $('#submitButton');
     var nextQuestionButton = $('#nextQuestionButton');
     var newGameButton = $('#newGameButton');
-
     var choiceDiv = $('.question-square .choice-section');
     var thumbnail = $('#thumbnail');
 
-    var that = this;
+    var self = this;
 
     this.newGame = function() {
         console.log('Starting new game');
         newGameButton.hide();
-        submitButton.show();
+        submitButton.hide();
 
-        turnCount = 1;
+        turnCount = 0;
         correctCount = 0;
         wrongCount = 0;
+
+        imageQueue = [];
+        questionQueue = [];
+        failingCategories = [];
+
+        questionsLoaded = 0;
+        questionLoadFailures = 0;
+        nextQuestionBlocked = true;
+        nextImage = new Image();
+
         $('#correct').text(correctCount);
         $('#wrong').text(correctCount);
 
+        loadQuestions(MAX_TURNS);
         if (!gameSetup) {
-            setFirstQuestion();
             setupGame();
             gameSetup = true;
         } else {
             curQuestion = nextQuestion;
-            setNextQuestion();
         }
         $('input[name=wikichoice]').attr('checked', false);
 
     };
+
+    function loadQuestions(loadCount) {
+        for (var i = 0; i < loadCount; i++) {
+            var question = wikiClient.generateQuestion(CATEGORY, onSuccess, onFailure);
+        }
+
+        function onSuccess(question) {
+            var img = new Image();
+            img.onload = function() {
+                questionsLoaded++;
+                console.log("Question " + questionsLoaded + " loaded.");
+
+                imageQueue.push(img);
+                questionQueue.push(question);
+                
+                // If first question hasn't been shown yet.
+                if (turnCount == 0) {
+                    nextQuestion = questionQueue.shift();
+                    nextImage = imageQueue.shift();
+                    advanceTurn();
+                } else if (nextQuestionBlocked) {
+                    nextQuestionButton.prop('disabled', false);
+                    nextQuestionBlocked = false;
+                }
+            };
+            img.onerror = function() {
+                // TODO
+            }
+
+            img.src = question.thumbnail.src;
+        }
+
+        function onFailure(error) {
+            console.log("Question NOT received from category: " + error.category);
+            console.log(error.message);
+            failingCategories.push(error.category);
+
+            questionLoadFailures++;
+            if (questionLoadFailures < 10) {
+                loadQuestions(1);
+            } else {
+                console.log("Too many questions are failing to load.  Try reloading game.");
+            }
+        }
+
+    }
 
     function setupGame() {
         console.log('Setting handlers');
@@ -304,76 +367,47 @@ function WikipediaGame() {
                 return;
             }
             submitButton.hide();
-            nextQuestionButton.prop('disabled', true);
-            nextQuestionButton.show();
-
             checkAnswers(choiceId);
-            getNextQuestion();
 
-            //TODO: this should be moved to a callback function
             if (turnCount >= MAX_TURNS) {
-                nextQuestionButton.hide();
                 newGameButton.show();
+            } else {
+                // If no more questions have loaded yet,
+                //      prevent the user from proceding
+                //      by disabling the "Next Question" button.
+                if (imageQueue.length < 1) {
+                    nextQuestionButton.prop('disabled', true);
+                    nextQuestionBlocked = true;
+                } else {
+                    nextQuestion = questionQueue.shift();
+                    nextImage = imageQueue.shift();
+                }
+                nextQuestionButton.show();
             }
+
         });
 
         nextQuestionButton.click(function(event) {
             console.log('Submit Button clicked');
-            curQuestion = nextQuestion;
             nextQuestionButton.hide();
-            submitButton.show();
-            
-            turnCount += 1;
-            setNextQuestion();
+            advanceTurn();
         });
 
         newGameButton.click(function(event) {
-            that.newGame();
+            self.newGame();
         });
 
     }
 
-    function setFirstQuestion() {
-        getNextQuestion(true);
+
+    function advanceTurn() {
+        setNextQuestion();
+        curQuestion = nextQuestion;
+        submitButton.show();
+        turnCount++;
+        console.log("Question " + turnCount);
     }
 
-    function getNextQuestion(setImmediately) {
-        console.log('Retrieving next question');
-        wikiClient.generateQuestion(category, onSuccess, onFailure);
-
-        function onSuccess(response) {
-            console.log('...Question retrieved.');                
-            nextQuestion = response;
-
-            nextImage = new Image();
-            nextImage.onload = onload;
-            nextImage.onerror = onerror;
-            nextImage.src = nextQuestion.thumbnail.src;
-            
-            if (setImmediately) {
-                curQuestion = nextQuestion;
-                setNextQuestion();
-            }
-
-            function onload() {
-                console.log("Next image loaded.");
-                nextQuestionButton.prop('disabled', false);                
-            }
-
-            function onerror() {
-                console.log("Image failed to load.")
-            }
-        }
-
-        function onFailure(error) {
-            //TODO: GIVE USER PROPER FEEDBACK IF QUESTION FAILS TO GENERATE
-            console.log("Question NOT received.");
-            console.log(error.message);
-
-            alert("The Wikipedia categories we've chosen do not provide enough information to generate a question.  Try starting over.");
-        }
-
-    }
 
     function setNextQuestion() {
         choiceDiv.css('visibility', 'hidden');
@@ -393,14 +427,14 @@ function WikipediaGame() {
             var label = choice.find('label');
             label.removeClass('correct');
             label.removeClass('incorrect');
-            label.text(curQuestion.choices[index].title);
+            label.text(nextQuestion.choices[index].title);
 
             var anchor = choice.find('a');
             anchor.hide();
-            anchor.attr("href", curQuestion.choices[index].url);
+            anchor.attr("href", nextQuestion.choices[index].url);
 
             var input = choice.find('input');
-            input.attr("value", curQuestion.choices[index].key);
+            input.attr("value", nextQuestion.choices[index].key);
         });
 
         $('input[name=wikichoice]').attr('checked', false);
@@ -415,11 +449,9 @@ function WikipediaGame() {
 
         if (guess == answerKey) {
             correctCount = correctCount + 1;
-            console.log(correctCount);
             $('#correct').text(correctCount);
         } else {
             wrongCount = wrongCount + 1;
-            console.log(wrongCount);
             $('#wrong').text(wrongCount);
         }
 
