@@ -27,6 +27,7 @@ function WikipediaClient() {
     var THUMBNAIL_QUERY_MAX = 50;
     var WP_ENDPOINT = 'http://en.wikipedia.org/w/api.php?';
     var WP_MAIN_NAMESPACE = 0;
+    var filter = new ObscenityFilter();
 
     function query(request, onSuccess, onFailure) {
         request.action = 'query';
@@ -173,6 +174,13 @@ function WikipediaClient() {
                 var key = keys[i];
                 var page = pages[key];
                 if (page.hasOwnProperty('thumbnail')) {
+                    if (filter.containsObscenity(pages[key].title)) {
+                        console.log("Title: '" + pages[key].title + "' rejected due to possible innappropriate content.");
+                        continue;
+                    } else {
+                        console.log("Choosing title: "+ pages[key].title);
+                    }
+
                     //preload image immediately
                     question.thumbnail.src = pages[key].thumbnail.original;
                     question.answerKey = key;
@@ -184,7 +192,7 @@ function WikipediaClient() {
                     question.choices.push(correctChoice);
                     break;
                 }
-            }            
+            }
         }
 
         function assembleQuestion() {
@@ -195,6 +203,11 @@ function WikipediaClient() {
                     continue;
                 }
                 var title = pages_1[key].title;
+                if (filter.containsObscenity(title)) {
+                    console.log("Title: '" + title + "' rejected due to possible innappropriate content.");
+                    continue;
+                }
+
                 var url = pages_1[key].url;
                 question.choices.push({ title: title,
                                         url: url,
@@ -213,6 +226,10 @@ function WikipediaClient() {
                         continue;
                     }
                     var title = pages_2[key]['title'];
+                    if (filter.containsObscenity(title)) {
+                        console.log("Title: '" + title + "' rejected due to possible innappropriate content.");
+                        continue;
+                    }
                     var url = pages_2[key]['url'];                
                     question.choices.push({ title: title,
                                             url: url,
@@ -231,7 +248,9 @@ function WikipediaClient() {
 function WikipediaGame() {
     var wikiClient = new WikipediaClient();
 
-    var category = 'Category:1955_deaths'; //TODO: NO LONGER HARDCODE THIS
+    var category = 'Category:California_counties'; //TODO: NO LONGER HARDCODE THIS
+    // var category = 'Category:1955_deaths'; //TODO: NO LONGER HARDCODE THIS
+
     var gameSetup = false;
     var MAX_TURNS = 10;
 
@@ -325,13 +344,25 @@ function WikipediaGame() {
         function onSuccess(response) {
             console.log('...Question retrieved.');                
             nextQuestion = response;
-            nextImage = nextQuestion.thumbnail;
-            nextQuestionButton.prop('disabled', false);
+
+            nextImage = new Image();
+            nextImage.onload = onload;
+            nextImage.onerror = onerror;
+            nextImage.src = nextQuestion.thumbnail.src;
             
             if (setImmediately) {
                 curQuestion = nextQuestion;
                 setNextQuestion();
-            }            
+            }
+
+            function onload() {
+                console.log("Next image loaded.");
+                nextQuestionButton.prop('disabled', false);                
+            }
+
+            function onerror() {
+                console.log("Image failed to load.")
+            }
         }
 
         function onFailure(error) {
