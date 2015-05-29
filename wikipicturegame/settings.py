@@ -65,7 +65,7 @@ db_default = {
         'NAME': 'wikipicturegame_db',
         'HOST': '127.0.0.1',
         'PORT': '5432',
-    }
+}
 
 db_default['USER'] = os.environ['WIKIPICTUREGAME_DB_USER']
 db_default['PASSWORD'] = os.environ['WIKIPICTUREGAME_DB_PASSWORD']

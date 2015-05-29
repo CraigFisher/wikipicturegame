@@ -6,23 +6,13 @@ import json
 
 def home(request):
     if request.method == "GET":
+        # debugText = ""
 
         # TODO: NO LONGER HARDCODE CATEGORY
-
-        # category = 'Category:A_priori'
-        # category = 'Category:1955_deaths'
-        # category = 'Category:California_counties'
-        # category = 'Category:Basic_concepts_in_infinite_set_theory'
-        # category = 'Category:Compactness_(mathematics)'
-        # debugText = ""
-        # question = {}
-
-        # try:
-            # question = generateQuestion(category)
-        # except ValueError as e:
-            # debugText = str(e)
-
-        context = {}
+        categories = ['Category:1955_deaths',
+                      'Category:California_counties',
+                      'Category:Basic_concepts_in_infinite_set_theory']
+        context = {"categories": json.dumps(categories)}
         return render(request, 'game/game.html', context)
 
     if request.method == "POST":

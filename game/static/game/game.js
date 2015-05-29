@@ -1,6 +1,6 @@
 "use strict";
 
-var getRandomInt = function(min, max) {
+var getRandomInt = function(min, max) { // Inclusive /
     return Math.floor(Math.random() * (max - min)) + min;
 };
 
@@ -22,12 +22,108 @@ var serialize = function(obj) {
 var LOWERCASE_ALPHABET = "abcdefghijklmnopqrstuvwxyz";
 
 
+function CategoryLoader(useDatabase) {
+    var MAX_CATEGORY_REQUESTS = 50; // No more than 50 categories could even be used
+                                    // in a standard game of 10 turns 5 questions each.
+                                    // Excessive requests should be ignored.
+    this.useDatabase = useDatabase;
+    if (PRE_LOADED_CATEGORIES)
+        var remainingPreloadedCategories = PRE_LOADED_CATEGORIES.length;
+    else 
+        var remainingPreloadedCategories = 0;
+
+
+    this.requestCategories = function(requestAmount, onSuccess, onFailure) {
+        var categories = [];
+        if (requestAmount > MAX_CATEGORY_REQUESTS) {
+            var error = {
+                name: "requestCategories error",
+                message: "Too many categories requested!  Limit is " + MAX_CATEGORY_REQUEST,
+            };
+            onFailure(error);
+            return;
+        }
+        // If not using the database, just keep recycling the preloaded categories. 
+        if (!useDatabase) {
+            if (requestAmount > PRE_LOADED_CATEGORIES.length) {
+                var error = {
+                    name: "requestCategories error",
+                    message: "Insufficient categories to meet request.",
+                };
+                onFailure(error);
+                return;
+            }
+            categories = PRE_LOADED_CATEGORIES.slice(0, requestAmount);
+            onSuccess(categories);
+        // Otherwise, use preloaded categories first until they've all been used.
+        } else {
+            if (remainingPreloadedCategories) {
+                for (var i = 0; i < requestAmount && remainingPreloadedCategories; i++) {
+                    var nextCategory = PRE_LOADED_CATEGORIES[remainingPreloadedCategories - 1];
+                    categories.push(nextCategory);
+                    remainingPreloadedCategories--;
+                }
+            }
+
+            if (categories.length >= requestAmount) {
+                onSuccess(categories);
+            } else {
+                console.log("Retrieving more categories from database");
+                // SEND OUT NEW AJAX REQUEST TO DATABASE
+
+                    // SEND REQUEST WITH CALLBACKS onCategoriesSuccess AND ONFAILURE
+            }
+        }
+
+        function onNewCategoriesLoaded() {
+            // PARSE RESULTS FOR ONLY THE TITLES
+            // ONSUCCESS(CATEGORIES)
+        }
+
+    };
+
+}
+
+
+function CategoryWrapper(pages, title) {
+    this.title  = title;    
+    this.pages  = pages;
+    this.keys   = Object.keys(pages);
+    this.length = this.keys.length;
+    this.cursor = 0;
+}
+
+
+CategoryWrapper.prototype.nextPage = function() {
+    if (this.cursor === this.length - 1) {
+        this.cursor = 0;
+    } else {
+        this.cursor = this.cursor + 1;
+    }
+    return this.pages[this.keys[this.cursor]];
+};
+
+
+CategoryWrapper.prototype.shuffle = function() {
+    this.keys = shuffle(this.keys);
+};
+
+
 function WikipediaClient() {
-    var QUERY_MAX = 500;  // Maximum results for regular user per individual query, as specified by Wikipedia.
+    var WP_QUERY_MAX = 500;      // Wikipedia API's maximum number of results per query.
+    var CUSTOM_QUERY_MAX = 250;  // Custom limit
     var THUMBNAIL_QUERY_MAX = 50;
     var WP_ENDPOINT = 'http://en.wikipedia.org/w/api.php?';
     var WP_MAIN_NAMESPACE = 0;
+
+    var rememberedCategories = {};
+    var previousAnswerKeys = [];
     var filter = new ObscenityFilter();
+
+    this.reset = function() {
+        rememberedCategories = {};
+        previousAnswerKeys = [];
+    };
 
     function query(request, onSuccess, onFailure) {
         request.action = 'query';
@@ -40,220 +136,242 @@ function WikipediaClient() {
             success: function(response) {
                 if (response.hasOwnProperty('warnings'))
                     console.log(response.warnings);
-                if (!response.hasOwnProperty('error') && response.hasOwnProperty('query')) {
-                    onSuccess(response.query);
-                } else {
-                    var error = {
-                        name: "query error",
+                if (response.hasOwnProperty('error')) {
+                   var error = {
+                        name: "API error",
                         message: "Failed to retrieve pages!",
                         category: request.gcmtitle,
                     };
                     onFailure(error);
-                }
+                    return;
+                } 
+                if (!response.hasOwnProperty('query')) { // If query returned no results, API does not
+                    response.query = {};                 //     set a query parameter at all, 
+                }                                        //     so explicitly set an empty one
+                onSuccess(response.query, request.gcmtitle);
+            },
+            error: function() {
+                var error = {
+                    name: "AJAX error",
+                    message: "Failed to retrieve pages!",
+                    category: request.gcmtitle,
+                };
+                onFailure(error);
             }
         });
     }
 
 
-    this.generateQuestion = function(category, onSuccess, onFailure) {
+    this.generateQuestion = function(questionCategories, onSuccess, onFailure) {
         var question = {};
         question.choices = [];
         question.thumbnail = new Image();
         question.answerKey = "";
+        question.answerCategory = "";
 
-        var response_1;
-        var pages_1;
-        var keys_1;
+        var numCategories = questionCategories.length;
+        var categoryDictionary = {};
+        var numRequestsReceived = 0;
+        var onFailureSent = false;
 
-        //Second request may be necessary if first
-        //does not provide enough information.
-        var response_2;
-        var pages_2;
-        var keys_2;
-
-        var request = { prop: 'pageimages|info', 
-                        inprop: 'url', 
-                        piprop: 'original', 
-                        pilimit: THUMBNAIL_QUERY_MAX, 
-                        gcmlimit: QUERY_MAX, 
-                        generator: 'categorymembers', 
-                        gcmprop: 'ids', 
-                        gcmnamespace: WP_MAIN_NAMESPACE, 
-                        gcmsort: 'sortkey',
-                        gcmtitle: category
-        };
-
-        prepareFirstQuery();
-        query(request, handleFirstQuery, onFailure);
-
-
-        function prepareFirstQuery() {
-            //Randomly generate a starting character from which
-            //  to collect Wikipedia page results.
-            //  If character is in first half of alphabet,
-            //      collect results going up the alphabet
-            //  else, collect results going down the alphabet.
-            //
-            //  (This behavior is necessary since Wikimedia API
-            //   does not wrap results around the alphabet.)
-            var startingLetterIndex = getRandomInt(25, 0);
-            if (startingLetterIndex <= 12)
-                request.gcmdir = 'asc';
-            else
-                request.gcmdir = 'desc';
-            var startingLetter = LOWERCASE_ALPHABET.charAt(startingLetterIndex);
-            request.gcmstartsortkeyprefix = startingLetter;
-        }
-
-
-        function prepareSecondQuery() {
-            // Search again from the same starting letter in the opposite direction.
-            //      This ensures entire alphabet is fairly checked.
-            if (request.gcmdir == 'asc')
-                request.gcmdir = 'desc';
-            else
-                request.gcmdir = 'asc';
-        }
-
-
-        function handleFirstQuery(response) {
-            response_1 = response;
-
-            pages_1 = response_1.pages;
-            keys_1 = Object.keys(pages_1);
-            keys_1 = shuffle(keys_1);
-            searchForAnswer(pages_1, keys_1);
-
-            if (question.thumbnail.src && keys_1.length >= 5) {
-                assembleQuestion();
-                onSuccess(question);
+        for (var i = 0; i < numCategories; i++) {
+            var categoryTitle = questionCategories[i];
+            // If category's members have already been collected 
+            //      from a previous question, recycle them.
+            if (rememberedCategories.hasOwnProperty(categoryTitle)) {
+                categoryDictionary[categoryTitle] = rememberedCategories[categoryTitle];
+                numRequestsReceived++;
+                if (numRequestsReceived === numCategories) {
+                    assembleQuestion();
+                }
             } else {
-                // If a thumbnail hasn't been found among the first 500 pages, give up.
-                if (!question.thumbnail.src && keys_1.length >= 500) {
-                    var error = { 
-                        name: "handleFirstQuery error",
-                        error: "Could not find thumbnail images for this category.",
-                        category: category
-                    };
-                    onFailure(error);
+                queryCategoryMembers(questionCategories[i]);
+            }
+        }
+
+        // Send out two requests: one ascending the alphabet from a chosen letter, 
+        //      the other descending the alphabet.
+        // (This behavior is necessary since Wikimedia API
+        //  does not wrap results around the alphabet.)
+        function queryCategoryMembers(category) {
+            var request = { 
+                prop: 'pageimages|info', 
+                inprop: 'url', 
+                piprop: 'original', 
+                pilimit: THUMBNAIL_QUERY_MAX,
+                gcmlimit: CUSTOM_QUERY_MAX,
+                generator: 'categorymembers', 
+                gcmprop: 'ids', 
+                gcmnamespace: WP_MAIN_NAMESPACE, 
+                gcmsort: 'sortkey',
+                gcmtitle: category,
+            };
+
+            // Randomly generate a starting character from which
+            // to collect Wikipedia page results.
+            var startingLetterIndex = getRandomInt(0, 26);
+            var startLetter = LOWERCASE_ALPHABET.charAt(startingLetterIndex);
+            request.gcmstartsortkeyprefix = startLetter;
+
+            // Deep copy request
+            var request2 = JSON.parse(JSON.stringify(request));
+            request.gcmdir  = 'asc';
+            request2.gcmdir = 'desc';
+
+            query(request,  combineRequests, onCategoryMembersFailure);
+            query(request2, combineRequests, onCategoryMembersFailure);
+
+            var response_1;
+            var response_2;
+            var combinedResponse = {};
+            var numReceived = 0;
+
+            function combineRequests(response, category) {
+                if (onFailureSent)
+                    return;
+                numReceived++;
+                if (numReceived === 1) {
+                    response_1 = response;
                 } else {
-                    prepareSecondQuery();
-                    query(request, handleSecondQuery, onFailure);
+                    response_2 = response;
+                    $.extend(response_1, response_2);
+                    onCategoryMembersSuccess(response_1, category);
                 }
             }
         }
 
-        function handleSecondQuery(response) {
-            response_2 = response;
-
-            pages_2 = response_2.pages;
-            keys_2 = Object.keys(pages_2);
-            keys_2 = shuffle(keys_2);
-            searchForAnswer(pages_2, keys_2);
-
-            if (question.thumbnail.src) {
+        function onCategoryMembersSuccess(response, category) {
+            if (onFailureSent)
+                return;
+            numRequestsReceived++;
+            rememberedCategories[category] = new CategoryWrapper(response.pages, category);
+            categoryDictionary[category] = rememberedCategories[category];
+            if (numRequestsReceived === numCategories) {
                 assembleQuestion();
-                onSuccess(question);              
-            } else {
-                // If a suitable answer still can't be found,
-                //      then one probably does not exist.
-                //      (By this point, either the entire category
-                //      has been searched or at least 1000 of its pages.)
-                var error = { 
-                    name: "handleSecondQuery error",
-                    error: "Could not find thumbnail images for this category." ,
-                    category: category
-                };
-                onFailure(error);  
+            }
+        }
+
+        function onCategoryMembersFailure(error) {
+            if (onFailureSent)
+                return;
+            onFailure(error);
+            onFailureSent = true;
+        }
+
+        function assembleQuestion() {
+            // Freshly shuffle all the categories before digging
+            //      them for questions.
+            for (var i = 0; i < numCategories; i++) {
+                var curCategory = categoryDictionary[questionCategories[i]];
+                curCategory.shuffle();
             }
 
+            for (var i = 0; i < numCategories; i++) {
+                var curCategory = categoryDictionary[questionCategories[i]];
+                if(searchForValidAnswer(curCategory)) {
+                    break;
+                }
+            }
+            // If valid answer not found, return with onFailure
+            if (!question.thumbnail.src) {
+                var error = { 
+                    name: "assembleQuestion error",
+                    error: "Could not find valid images from these categories."
+                };
+                onFailure(error);
+                return;
+            }
+
+            var choiceCount = 1;
+            while (choiceCount < 5) {
+                var curCategoryTitle = questionCategories[choiceCount % numCategories];
+                var curCategory = categoryDictionary[curCategoryTitle];
+
+                var choice;
+                for (var i = 0; i < curCategory.length; i++) {
+                    var page = curCategory.nextPage();
+                    if (page.pageid === question.answerKey) {
+                        continue;
+                    }
+                    if (filter.containsObscenity(page.title)) {
+                        console.log("Title: '" + page.title + "' rejected due to possible innappropriate content.");
+                        continue;
+                    }
+                    choice = {
+                        title: page.title,
+                        url: page.fullurl,
+                        key: page.pageid,
+                        category: curCategory.title
+                    };
+                    // If even one category fails to produce any choices,
+                    //      call onFailure with error.
+                    if (!choice) {
+                        var error = { 
+                            name: "assembleQuestion error",
+                            error: "Category did not yield any valid choices.",
+                            category: curCategory.title
+                        };
+                        onFailure(error);                            
+                        return;
+                    }
+                    question.choices.push(choice);
+                    break;
+                }
+                choiceCount++;                        
+            }
+            question.choices = shuffle(question.choices);
+            onSuccess(question);
         }
 
         // A suitable answer article must contain a thumbnail image.
         //      If a suitable article is found, collect its 
         //      information and add it to the choices array.
-        function searchForAnswer(pages, keys) {
-            for (var i = 0; i < keys.length; i++) {
-                var key = keys[i];
-                var page = pages[key];
+        function searchForValidAnswer(category) {
+            for (var i = 0; i < category.length; i++) {
+                var page = category.nextPage();
                 if (page.hasOwnProperty('thumbnail')) {
-                    if (filter.containsObscenity(pages[key].title)) {
-                        console.log("Title: '" + pages[key].title + "' rejected due to possible innappropriate content.");
+                    // Make sure we didn't already use answer.
+                    if (previousAnswerKeys.indexOf(page.pageid) > -1) {
                         continue;
                     }
+                    if (filter.containsObscenity(page.title)) {
+                        console.log("Title: '" + page.title + "' rejected due to possible innappropriate content.");
+                        continue;
+                    }
+                    previousAnswerKeys.push(page.pageid);
 
                     //preload image immediately
-                    question.thumbnail.src = pages[key].thumbnail.original;
-                    question.answerKey = key;
+                    question.thumbnail.src = page.thumbnail.original;
+                    question.answerKey = page.pageid;
+                    question.answerCategory = category.title;
 
-                    var correctChoice = {};
-                    correctChoice.title = pages[key].title;
-                    correctChoice.url = pages[key].fullurl;
-                    correctChoice.key = key;
-                    question.choices.push(correctChoice);
-                    break;
+                    var answerChoice = {
+                        title: page.title,
+                        url: page.fullurl,
+                        key: page.pageid,
+                        category: category.title
+                    };
+                    question.choices.push(answerChoice);
+                    return true;
                 }
             }
+            return false;
         }
-
-        function assembleQuestion() {
-            var choiceCount = 1;
-            for (var i = 0; i < keys_1.length && choiceCount < 5; i++) {
-                var key = keys_1[i];
-                if (key === question.answerKey) {
-                    continue;
-                }
-                var title = pages_1[key].title;
-                if (filter.containsObscenity(title)) {
-                    console.log("Title: '" + title + "' rejected due to possible innappropriate content.");
-                    continue;
-                }
-
-                var url = pages_1[key].url;
-                question.choices.push({ title: title,
-                                        url: url,
-                                        key: key});
-                choiceCount++;
-            }
-
-            // If there are not enough articles from the first query, 
-            //      then a second query must have been made,
-            //      If this is the case, 
-            //          use articles from the second query. 
-            if (choiceCount < 5) {
-                for (var i = 0; i < keys_2.length && choiceCount < 5; i++) {
-                    var key = keys_2[i];
-                    if (key === question.answerKey) {
-                        continue;
-                    }
-                    var title = pages_2[key]['title'];
-                    if (filter.containsObscenity(title)) {
-                        console.log("Title: '" + title + "' rejected due to possible innappropriate content.");
-                        continue;
-                    }
-                    var url = pages_2[key]['url'];                
-                    question.choices.push({ title: title,
-                                            url: url,
-                                            key: key});
-                    choiceCount++;
-                }                
-            }
-
-            question.choices = shuffle(question.choices);
-        }
-
+ 
     };
 
 }
 
+
 function WikipediaGame() {
-    var wikiClient = new WikipediaClient();
-
-    var CATEGORY = 'Category:California_counties'; //TODO: NO LONGER HARDCODE THIS
-    // var category = 'Category:1955_deaths'; //TODO: NO LONGER HARDCODE THIS
-
-    var gameSetup = false;
     var MAX_TURNS = 10;
+    var CATEGORIES_PER_GAME = 3;        //TODO: make flexible       
+    var CATEGORIES_PER_QUESTION = 3;    //TODO: make flexible
+    var USE_DATABASE = false;           
+
+    var wikiClient = new WikipediaClient();
+    var categoryLoader = new CategoryLoader(USE_DATABASE);
+    var buttonHandlersSet = false;
 
     var turnCount;
     var correctCount;
@@ -261,7 +379,7 @@ function WikipediaGame() {
 
     var imageQueue;
     var questionQueue;
-    var failingCategories;
+    var gameCategories;
 
     var questionsLoaded;
     var questionLoadFailures;
@@ -281,6 +399,7 @@ function WikipediaGame() {
 
     this.newGame = function() {
         console.log('Starting new game');
+
         newGameButton.hide();
         submitButton.hide();
 
@@ -290,7 +409,7 @@ function WikipediaGame() {
 
         imageQueue = [];
         questionQueue = [];
-        failingCategories = [];
+        gameCategories = [];
 
         questionsLoaded = 0;
         questionLoadFailures = 0;
@@ -300,10 +419,12 @@ function WikipediaGame() {
         $('#correct').text(correctCount);
         $('#wrong').text(correctCount);
 
-        loadQuestions(MAX_TURNS);
-        if (!gameSetup) {
-            setupGame();
-            gameSetup = true;
+        wikiClient.reset();
+        loadNewGameData();
+
+        if (!buttonHandlersSet) {
+            setupButtonHandlers();
+            buttonHandlersSet = true;
         } else {
             curQuestion = nextQuestion;
         }
@@ -311,53 +432,79 @@ function WikipediaGame() {
 
     };
 
-    function loadQuestions(loadCount) {
-        for (var i = 0; i < loadCount; i++) {
-            var question = wikiClient.generateQuestion(CATEGORY, onSuccess, onFailure);
+    function loadNewGameData() {
+        categoryLoader.requestCategories(CATEGORIES_PER_GAME, 
+                                         onCategoriesLoaded,
+                                         onCategoriesFailed);
+
+        function onCategoriesLoaded(categoriesReceived) {
+            gameCategories = categoriesReceived;
+            loadQuestions(MAX_TURNS);
         }
 
-        function onSuccess(question) {
-            var img = new Image();
-            img.onload = function() {
-                questionsLoaded++;
-                console.log("Question " + questionsLoaded + " loaded.");
-
-                imageQueue.push(img);
-                questionQueue.push(question);
-                
-                // If first question hasn't been shown yet.
-                if (turnCount == 0) {
-                    nextQuestion = questionQueue.shift();
-                    nextImage = imageQueue.shift();
-                    advanceTurn();
-                } else if (nextQuestionBlocked) {
-                    nextQuestionButton.prop('disabled', false);
-                    nextQuestionBlocked = false;
-                }
-            };
-            img.onerror = function() {
-                // TODO
-            }
-
-            img.src = question.thumbnail.src;
-        }
-
-        function onFailure(error) {
-            console.log("Question NOT received from category: " + error.category);
+        function onCategoriesFailed(error) {
+            console.log(error.name + ", Question NOT received: ");
             console.log(error.message);
-            failingCategories.push(error.category);
 
-            questionLoadFailures++;
-            if (questionLoadFailures < 10) {
-                loadQuestions(1);
-            } else {
-                console.log("Too many questions are failing to load.  Try reloading game.");
+            alert("Cannot generate game categories right now.  " + 
+                  "Try reloading or coming back later.");
+        }
+
+        function loadQuestions(loadCount) {
+            for (var i = 0; i < loadCount; i++) {
+                // Shuffle categories and pick first set
+                gameCategories = shuffle(gameCategories);
+                var questionCategories = gameCategories.slice(0, CATEGORIES_PER_QUESTION);
+                wikiClient.generateQuestion(questionCategories, onSuccess, onFailure);
             }
+
+            function onSuccess(question) {
+                var img = new Image();
+                img.onload = function() {
+                    questionsLoaded++;
+                    console.log("Question " + questionsLoaded + " loaded.");
+
+                    imageQueue.push(img);
+                    questionQueue.push(question);
+                    
+                    // If first question hasn't been shown yet.
+                    if (turnCount === 0) {
+                        nextQuestion = questionQueue.shift();
+                        nextImage = imageQueue.shift();
+                        advanceTurn();
+                    } else if (nextQuestionBlocked) {
+                        nextQuestionButton.prop('disabled', false);
+                        nextQuestionBlocked = false;
+                    }
+                };
+                img.onerror = function() {
+                    // TODO
+                };
+
+                img.src = question.thumbnail.src;
+            }
+
+            function onFailure(error) {
+                console.log(error.name + ", Question NOT received: ");
+                console.log(error.message);
+
+                if (error.category) {
+                    // TODO: DROP CATEGORY FROM AVAILABLE CATEGORY LIST
+                }
+
+                questionLoadFailures++;
+                if (questionLoadFailures < 10) {
+                    loadQuestions(1);
+                } else {
+                    console.log("Too many questions are failing to load.  Try reloading game.");
+                }
+            }
+
         }
 
     }
 
-    function setupGame() {
+    function setupButtonHandlers() {
         console.log('Setting handlers');
 
         submitButton.click(function(event) {
@@ -469,15 +616,34 @@ function WikipediaGame() {
 
 }
 
+function debugObject(object) {
+    $('body').append("<div style='text-align: left'><pre>" + 
+                     JSON.stringify(object, null, 2) + 
+                     "</pre></div>");
+}
+
+
 $(document).ready(function() {
-    // var wikipediaGame = new WikipediaGame();
-    // wikipediaGame.newGame();
-    var wikiClient = new WikipediaClient();
     var wikiGame = new WikipediaGame();
     wikiGame.newGame();
 
-    // wikiClient.generateQuestion('Category:1955_deaths', function(question) {
-    //     console.log(question);
-    // });
+    // TEST WIKI CLIENT
+    // var wikiClient = new WikipediaClient();
+    // wikiClient.generateQuestion(
+    //         ['Category:1955_deaths', 
+    //          'Category:California_counties', 
+    //          'Category:Basic_concepts_in_infinite_set_theory'], 
+    //         debugObject, 
+    //         debugObject
+    // );
+
+    // TEST CATEGORY LOADER
+    // var categoryLoader = new CategoryLoader(true);
+    // categoryLoader.requestCategories(10, debugObject, debugObject);
+    // categoryLoader.requestCategories(3, debugObject, debugObject);
+
+    // var categoryLoader = new CategoryLoader(false);
+    // categoryLoader.requestCategories(10, debugObject, debugObject);
+    // categoryLoader.requestCategories(3, debugObject, debugObject);
 });
 
