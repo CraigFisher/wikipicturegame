@@ -89,7 +89,8 @@ USE_TZ = True
 
 
 import dj_database_url
-DATABASES['default'] = dj_database_url.config()
+DATABASES['default'] = dj_database_url.config(default=os.environ.get('WIKIPICTUREGAME_DATABASE_URL'),
+                                              engine='django.db.backends.postgresql_psycopg2')
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
