@@ -36,48 +36,68 @@ function CategoryLoader(useDatabase) {
     this.requestCategories = function(requestAmount, onSuccess, onFailure) {
         var categories = [];
         if (requestAmount > MAX_CATEGORY_REQUESTS) {
-            var error = {
-                name: "requestCategories error",
+            onFailure({
+                name: "requestCategoriesError",
                 message: "Too many categories requested!  Limit is " + MAX_CATEGORY_REQUEST,
-            };
-            onFailure(error);
+            });
             return;
         }
         // If not using the database, just keep recycling the preloaded categories. 
         if (!useDatabase) {
             if (requestAmount > PRE_LOADED_CATEGORIES.length) {
-                var error = {
-                    name: "requestCategories error",
+                onFailure({
+                    name: "requestCategoriesError",
                     message: "Insufficient categories to meet request.",
-                };
-                onFailure(error);
+                });
                 return;
             }
             categories = PRE_LOADED_CATEGORIES.slice(0, requestAmount);
             onSuccess(categories);
-        // Otherwise, use preloaded categories first until they've all been used.
-        } else {
-            if (remainingPreloadedCategories) {
-                for (var i = 0; i < requestAmount && remainingPreloadedCategories; i++) {
-                    var nextCategory = PRE_LOADED_CATEGORIES[remainingPreloadedCategories - 1];
-                    categories.push(nextCategory);
-                    remainingPreloadedCategories--;
-                }
-            }
-
-            if (categories.length >= requestAmount) {
-                onSuccess(categories);
-            } else {
-                console.log("Retrieving more categories from database");
-                // SEND OUT NEW AJAX REQUEST TO DATABASE
-
-                    // SEND REQUEST WITH CALLBACKS onCategoriesSuccess AND ONFAILURE
-            }
+            return;
         }
 
-        function onNewCategoriesLoaded() {
-            // PARSE RESULTS FOR ONLY THE TITLES
-            // ONSUCCESS(CATEGORIES)
+        // Otherwise, use preloaded categories first until they've all been used.
+        if (remainingPreloadedCategories) {
+            for (var i = 0; i < requestAmount && remainingPreloadedCategories; i++) {
+                var nextCategory = PRE_LOADED_CATEGORIES[remainingPreloadedCategories - 1];
+                categories.push(nextCategory);
+                remainingPreloadedCategories--;
+            }
+        }
+        // If enough categories have been loaded, return successfully
+        if (requestAmount <= categories.length) {
+            onSuccess(categories);
+            return;
+        }
+        // Otherwise, try to load more from the server
+        var categoryShortage = requestAmount - categories.length;
+        retrieveNewCategories(categoryShortage);
+
+
+        function retrieveNewCategories(amount) {
+            console.log("Retrieving more categories from server");
+            $.ajax({
+                datatype: 'json',
+                contentType: 'application/json',
+                data: {'amount': amount},
+                type: 'GET',
+                success: function(result) {
+                    if (result.length === amount) {
+                        onSuccess(result);
+                    } else {
+                        onFailure({
+                            name: "requestCategoriesError",
+                            message: "Server did not send enough categories.",
+                        });
+                    }
+                },
+                error: function() {
+                    onFailure({
+                        name: "AjaxError",
+                        message: "Server did not respond successfully!",
+                    });
+                }
+            });
         }
 
     };
@@ -138,7 +158,7 @@ function WikipediaClient() {
                     console.log(response.warnings);
                 if (response.hasOwnProperty('error')) {
                    var error = {
-                        name: "API error",
+                        name: "ApiError",
                         message: "Failed to retrieve pages!",
                         category: request.gcmtitle,
                     };
@@ -155,7 +175,7 @@ function WikipediaClient() {
             },
             error: function() {
                 var error = {
-                    name: "AJAX error",
+                    name: "AjaxError",
                     message: "Failed to retrieve pages!",
                     category: request.gcmtitle,
                 };
@@ -278,7 +298,7 @@ function WikipediaClient() {
             // If valid answer not found, return with onFailure
             if (!question.thumbnail.src) {
                 var error = { 
-                    name: "assembleQuestion error",
+                    name: "assembleQuestionError",
                     error: "Could not find valid images from these categories."
                 };
                 onFailure(error);
@@ -310,7 +330,7 @@ function WikipediaClient() {
                     //      call onFailure with error.
                     if (!choice) {
                         var error = { 
-                            name: "assembleQuestion error",
+                            name: "assembleQuestionError",
                             error: "Category did not yield any valid choices.",
                             category: curCategory.title
                         };
@@ -370,7 +390,7 @@ function WikipediaGame() {
     var MAX_TURNS = 10;
     var CATEGORIES_PER_GAME = 2;        //TODO: make flexible       
     var CATEGORIES_PER_QUESTION = 2;    //TODO: make flexible
-    var USE_DATABASE = false;           
+    var USE_DATABASE = true;           
 
     var wikiClient = new WikipediaClient();
     var categoryLoader = new CategoryLoader(USE_DATABASE);
