@@ -148,7 +148,10 @@ function WikipediaClient() {
                 if (!response.hasOwnProperty('query')) { // If query returned no results, API does not
                     response.query = {};                 //     set a query parameter at all, 
                 }                                        //     so explicitly set an empty one
-                onSuccess(response.query, request.gcmtitle);
+                if (request.gcmtitle) { // If request included a category title, remove the prefix 'Category:'
+                    var originalTitle = request.gcmtitle.substring(9);
+                }
+                onSuccess(response.query, originalTitle);
             },
             error: function() {
                 var error = {
@@ -204,7 +207,7 @@ function WikipediaClient() {
                 gcmprop: 'ids', 
                 gcmnamespace: WP_MAIN_NAMESPACE, 
                 gcmsort: 'sortkey',
-                gcmtitle: category,
+                gcmtitle: 'Category:' + category,
             };
 
             // Randomly generate a starting character from which
@@ -365,8 +368,8 @@ function WikipediaClient() {
 
 function WikipediaGame() {
     var MAX_TURNS = 10;
-    var CATEGORIES_PER_GAME = 3;        //TODO: make flexible       
-    var CATEGORIES_PER_QUESTION = 3;    //TODO: make flexible
+    var CATEGORIES_PER_GAME = 2;        //TODO: make flexible       
+    var CATEGORIES_PER_QUESTION = 2;    //TODO: make flexible
     var USE_DATABASE = false;           
 
     var wikiClient = new WikipediaClient();
@@ -640,7 +643,7 @@ $(document).ready(function() {
     // TEST CATEGORY LOADER
     // var categoryLoader = new CategoryLoader(true);
     // categoryLoader.requestCategories(10, debugObject, debugObject);
-    // categoryLoader.requestCategories(3, debugObject, debugObject);
+    // categoryLoader.requestCategories(2, debugObject, debugObject);
 
     // var categoryLoader = new CategoryLoader(false);
     // categoryLoader.requestCategories(10, debugObject, debugObject);
