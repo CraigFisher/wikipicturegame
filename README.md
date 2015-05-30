@@ -7,8 +7,8 @@ To run the project, make sure to set up a virtualenv using my requirements.txt f
 
 WIKIPICTUREGAME_DB_USER,
 
-WIKIPICTUREGAME_DB_PASSWORD,
-
 WIKIPICTUREGAME_SECRET_KEY,
+
+WIKIPICTUREGAME_DATABASE_URL (must include db password)
 
 WIKIPICTUREGAME_DEBUG (If set to 'True', app will be run in debug mode.)
