@@ -27,13 +27,15 @@
     <img id="thumbnail" src="">
     </div>
     <div class="choice-section">
-        {% for x in '01234' %}
+    {% comment %}
+        {% for x in '0123' %}
         <div class="choice">
             <input id="choice-{{ x }}" type="radio" name="wikichoice" value="#" />
             <label for="choice-{{ x }}">a</label>
             <a target="_blank" href="#">Link</a>
         </div>
-        {% endfor %}    
+        {% endfor %}  
+    {% endcomment %}  
     </div>
     <br>
     <button id="submitButton">Submit Answer</button>

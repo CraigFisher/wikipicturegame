@@ -42,6 +42,7 @@ body {
 .question-square .choice-section a {
     font-style: italic;
     display: none;
+    /*font-weight: bold;*/
 }
 
 .question-square .choice-section a:visited {

@@ -85,9 +85,8 @@ class Command(BaseCommand):
         print("\nWikipediaCategory table now has: " + str(rowCount) + " categories, Max Id: " + str(maxId))
 
     def isCategoryValid(self, fullTitle, dbTitle):
-        """Sample at most 500 pages from the category.
-           If at least 10 thumbnails and 50 articles
-           can be found, load category into database."""
+        """If at least 10 thumbnails and 50 articles
+           can be found, category is valid."""
         if containsObscenity(dbTitle):
             print(dbTitle + ": FAILED, potential obscenity.")
             return False

@@ -12,6 +12,7 @@ WP_MAIN_NAMESPACE = 0
 def query(request):
     request['action'] = 'query'
     request['format'] = 'json'
+    request['maxlag'] = 5
     lastContinue = {'continue': ''}
 
     while True:

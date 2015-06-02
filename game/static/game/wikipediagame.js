@@ -130,7 +130,7 @@ CategoryWrapper.prototype.shuffle = function() {
 };
 
 
-function WikipediaClient() {
+function WikipediaClient(choicesPerQuestion) {
     var WP_QUERY_MAX = 500;      // Wikipedia API's maximum number of results per query.
     var CUSTOM_QUERY_MAX = 250;  // Custom limit
     var THUMBNAIL_QUERY_MAX = 50;
@@ -140,6 +140,9 @@ function WikipediaClient() {
     var rememberedCategories = {};
     var previousAnswerKeys = [];
     var filter = new ObscenityFilter();
+
+    var self = this;
+    this.choicesPerQuestion = choicesPerQuestion;
 
     this.reset = function() {
         rememberedCategories = {};
@@ -152,7 +155,7 @@ function WikipediaClient() {
         $.ajax({
             method: 'GET',
             dataType: "jsonp",
-            cache: true,
+            cache: false,
             url: WP_ENDPOINT,
             data: request,
             success: function(response) {
@@ -320,7 +323,7 @@ function WikipediaClient() {
             }
 
             var choiceCount = 1;
-            while (choiceCount < 5) {
+            while (choiceCount < self.choicesPerQuestion) {
                 var curCategoryTitle = questionCategories[choiceCount % numCategories];
                 var curCategory = categoryDictionary[curCategoryTitle];
 
@@ -402,12 +405,13 @@ function WikipediaClient() {
 
 function WikipediaGame() {
     var MAX_TURNS = 10;
-    var CATEGORIES_PER_GAME = 10;        //TODO: make flexible       
-    var CATEGORIES_PER_QUESTION = 5;    //TODO: make flexible
+    var CATEGORIES_PER_GAME = 10;     // TODO: make flexible       
+    var CATEGORIES_PER_QUESTION = 4;  // TODO: make flexible
+    var CHOICES_PER_QUESTION = 4;
     var USE_DATABASE = true;
     var CATEGORY_GAME = false;
 
-    var wikiClient = new WikipediaClient();
+    var wikiClient = new WikipediaClient(CHOICES_PER_QUESTION);
     var categoryLoader = new CategoryLoader(USE_DATABASE);
     var buttonHandlersSet = false;
 
@@ -461,6 +465,7 @@ function WikipediaGame() {
         loadNewGameData();
 
         if (!buttonHandlersSet) {
+            setupChoiceDivs();
             setupButtonHandlers();
             buttonHandlersSet = true;
         } else {
@@ -471,13 +476,34 @@ function WikipediaGame() {
     };
 
     function loadNewGameData() {
+        var firstSetCount = Math.floor(CATEGORIES_PER_GAME / CATEGORIES_PER_QUESTION) + 1;
+        var loadQuestionCalls = 0;
         categoryLoader.requestCategories(CATEGORIES_PER_GAME, 
-                                         onCategoriesLoaded,
+                                         loadFirstSetOfQuestions,
                                          onCategoriesFailed);
 
-        function onCategoriesLoaded(categoriesReceived) {
+        // Question loading is divided into a first and second set.
+        //      This allows category results from the first set of
+        //      questions to be stored in memory by time the second
+        //      set of questions is requested.  
+        //      
+        //      Once a category's members are stored in memory, 
+        //      no new requests will be sent over the network for them.
+        //
+        //      Dividing the question loading this way reduces API requests
+        //      by roughly 50% and noticeably speeds up page loads.
+        function loadFirstSetOfQuestions(categoriesReceived) {
             gameCategories = categoriesReceived;
-            loadQuestions(MAX_TURNS);
+            if (firstSetCount > MAX_TURNS) {
+                firstSetCount = MAX_TURNS;
+            }
+            loadQuestions(firstSetCount, loadSecondSetOfQuestions);
+        }
+
+        function loadSecondSetOfQuestions() {
+            if (firstSetCount < MAX_TURNS) {
+                loadQuestions(MAX_TURNS - firstSetCount);
+            }
         }
 
         function onCategoriesFailed(error) {
@@ -488,15 +514,19 @@ function WikipediaGame() {
                   "Try reloading or coming back later.");
         }
 
-        function loadQuestions(loadCount) {
+        function loadQuestions(loadCount, onSuccess) {
+            loadQuestionCalls++;
+            console.log("loadQuestions: " + loadQuestionCalls + ", loadCount: " + loadCount);
+            var questionsReceived = 0;
+
             for (var i = 0; i < loadCount; i++) {
                 // Shuffle categories and pick first set
                 gameCategories = shuffle(gameCategories);
                 var questionCategories = gameCategories.slice(0, CATEGORIES_PER_QUESTION);
-                wikiClient.generateQuestion(questionCategories, onSuccess, onFailure);
+                wikiClient.generateQuestion(questionCategories, onQuestionReceived, onQuestionFailure);
             }
 
-            function onSuccess(question) {
+            function onQuestionReceived(question) {
                 var img = new Image();
                 img.onload = function() {
                     questionsLoaded++;
@@ -518,11 +548,17 @@ function WikipediaGame() {
                 img.onerror = function() {
                     // TODO
                 };
-
                 img.src = question.thumbnail.src;
+
+                questionsReceived++;
+                if (questionsReceived >= loadCount) {
+                    if (typeof onSuccess !== 'undefined') {
+                        onSuccess();
+                    }
+                }
             }
 
-            function onFailure(error) {
+            function onQuestionFailure(error) {
                 console.log(error.name + ", Question NOT received: ");
                 console.log(error.message);
 
@@ -540,6 +576,17 @@ function WikipediaGame() {
 
         }
 
+    }
+
+    function setupChoiceDivs() {
+        for (var i = 0; i < CHOICES_PER_QUESTION; i++) {
+            $('.choice-section').append(  
+                "<div class='choice'>" +
+                    "<input id='choice-" + i + "' type='radio' name='wikichoice' value='#' /> " +
+                    "<label for='choice-" + i + "'>a</label> " +
+                    "<a target='_blank' href='#'>Link</a>" +
+                "</div>");
+        }
     }
 
     function setupButtonHandlers() {
