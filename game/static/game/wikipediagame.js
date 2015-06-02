@@ -134,7 +134,7 @@ function WikipediaClient(choicesPerQuestion) {
     var WP_QUERY_MAX = 500;      // Wikipedia API's maximum number of results per query.
     var CUSTOM_QUERY_MAX = 250;  // Custom limit
     var THUMBNAIL_QUERY_MAX = 50;
-    var WP_ENDPOINT = 'http://en.wikipedia.org/w/api.php?';
+    var WP_ENDPOINT = 'https://en.wikipedia.org/w/api.php?';
     var WP_MAIN_NAMESPACE = 0;
 
     var rememberedCategories = {};
@@ -490,7 +490,7 @@ function WikipediaGame() {
         //      Once a category's members are stored in memory, 
         //      no new requests will be sent over the network for them.
         //
-        //      Dividing the question loading this way reduces API requests
+        //      Dividing the question loading reduces API requests
         //      by roughly 50% and noticeably speeds up page loads.
         function loadFirstSetOfQuestions(categoriesReceived) {
             gameCategories = categoriesReceived;
