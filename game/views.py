@@ -5,7 +5,7 @@ from game.models import WikipediaCategory, RowCounts
 import json
 
 
-_INITIAL_REQUEST_SIZE = 2
+_INITIAL_REQUEST_SIZE = 10
 
 
 def home(request):
@@ -15,15 +15,17 @@ def home(request):
         else:
             categoryRequestSize = _INITIAL_REQUEST_SIZE
 
-        rowCount = RowCounts.objects.get(tablename='game_wikipediacategory').rowcount
+        tablename = WikipediaCategory._meta.db_table
+        maxId = RowCounts.objects.get(tablename=tablename).max_id
         # Query paraphrased from
         # https://www.periscope.io/blog/how-to-sample-rows-in-sql-273x-faster.html
-        random_category_query = "select id, title from game_wikipediacategory " \
+        random_category_query = "select id, title from {0} " \
                                 "where id in ( " \
-                                "select round(random() * {0})::integer as id " \
-                                "from generate_series(1, {1}) " \
+                                "select round(random() * {1})::integer as id " \
+                                "from generate_series(1, {2}) " \
                                 "group by id) " \
-                                "limit {2} ".format(rowCount,
+                                "limit {3} ".format(WikipediaCategory._meta.db_table,
+                                                    maxId,
                                                     categoryRequestSize * 10,
                                                     categoryRequestSize)
 

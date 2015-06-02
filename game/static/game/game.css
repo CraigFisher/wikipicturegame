@@ -16,7 +16,7 @@ body {
 .question-square img {
     /*max-width: 430px;*/
     /*height: auto;*/
-    max-height: 360px;
+    max-height: 310px;
     margin: 0px 38px;
     width: auto;
     visibility: hidden;
@@ -27,7 +27,8 @@ body {
 }
 
 .question-square h2 {
-    font-size: 24px;
+    font-size: 20px;
+    /*font-weight: normal;*/
 }
 
 .question-square .choice-section {
@@ -48,8 +49,8 @@ body {
 }
 
 .question-square .choice {
-    font-size: 22px;
-    font-weight: bold;
+    font-size: 20px;
+    /*font-weight: bold;*/
     margin: 8px;
 }
 

@@ -1,27 +1,47 @@
 import requests
-import random
-# import cProfile
-import string
 
 
-_DEBUG = False
-_QUERY_MAX = 500  # Maximum results for regular user per individual query, as specified by Wikipedia.
-_THUMBNAIL_QUERY_MAX = 50
-_WIKIPEDIA_ENDPOINT = 'http://en.wikipedia.org/w/api.php?'
+WIKIPEDIA_ENDPOINT = 'http://en.wikipedia.org/w/api.php?'
+WP_QUERY_MAX = 500  # Maximum results for regular user per individual query, as specified by Wikipedia.
+WP_THUMBNAIL_QUERY_MAX = 50  # Maximum per query, set by Wikipedia
+WP_CATEGORY_NAMESPACE = 14
+WP_MAIN_NAMESPACE = 0
 
 
-def debugIndex(size, index):
-    print("size", size)
-    print("index", index)
-
-
-def query(request, limitParam, selectionNumber):
+# Paraphrased from http://www.mediawiki.org/wiki/API:Query#Generators
+def query(request):
     request['action'] = 'query'
     request['format'] = 'json'
     lastContinue = {'continue': ''}
 
-    if selectionNumber > _QUERY_MAX:
-        request[limitParam] = _QUERY_MAX
+    while True:
+        # Clone original request
+        req = request.copy()
+        # Modify it with the values returned in the 'continue' section of the last result.
+        req.update(lastContinue)
+        # Call API
+        result = requests.get('http://en.wikipedia.org/w/api.php', params=req).json()
+        if 'error' in result:
+            raise ValueError("Failed to retrieve category pages!")
+        if 'warnings' in result:
+            print(result['warnings'])
+        if 'query' in result:
+            yield result['query']
+        if 'continue' not in result:
+            break
+        lastContinue = result['continue']
+
+
+# Earlier version of above query function,
+# remaining here so as not to break questionmaker.py
+# (which also contains legacy code)
+def legacyQuery(request, limitParam, selectionNumber):
+    request['action'] = 'query'
+    request['format'] = 'json'
+    lastContinue = {'continue': ''}
+
+    if selectionNumber > WP_QUERY_MAX:
+        request[limitParam] = WP_QUERY_MAX
     else:
         request[limitParam] = selectionNumber
     resultsRemaining = selectionNumber
@@ -33,7 +53,7 @@ def query(request, limitParam, selectionNumber):
         req.update(lastContinue)
         # Call API
         result = requests.get('http://en.wikipedia.org/w/api.php', params=req).json()
-        resultsRemaining -= _QUERY_MAX
+        resultsRemaining -= WP_QUERY_MAX
 
         if 'error' in result:
             raise ValueError("Failed to retrieve category pages!")
@@ -46,10 +66,24 @@ def query(request, limitParam, selectionNumber):
         lastContinue = result['continue']
 
 
-def generateQuestion(category):
-    request = {'prop': 'pageimages|info', 'inprop': 'url', 'piprop': 'original', 'pilimit': _THUMBNAIL_QUERY_MAX,
-               'generator': 'categorymembers', 'gcmprop': 'ids', 'gcmnamespace': 0,
-               'gcmsort': 'sortkey'}
+# Legacy single-category question maker.
+#   Now supplanted by client side question maker.
+#   May be recycled in the future.
+import string
+import random
+
+
+def makeQuestion(category):
+    request = {
+        'prop': 'pageimages|info',
+        'inprop': 'url',
+        'piprop': 'original',
+        'pilimit': WP_THUMBNAIL_QUERY_MAX,
+        'generator': 'categorymembers',
+        'gcmprop': 'ids',
+        'gcmnamespace': 0,
+        'gcmsort': 'sortkey'
+    }
 
     startingCharacterIndex = random.randint(0, 25)
     # If character is in first half of alphabet,
@@ -62,7 +96,7 @@ def generateQuestion(category):
     request['gcmtitle'] = category
     request['gcmstartsortkeyprefix'] = startingCharacter
 
-    response_1 = next(query(request, 'gcmlimit', _QUERY_MAX))  # Only first result set is used
+    response_1 = next(legacyQuery(request, 'gcmlimit', WP_QUERY_MAX))  # Only first result set is used
     pages_1 = response_1['pages']
 
     thumbnail = ""
@@ -92,7 +126,7 @@ def generateQuestion(category):
             request['gcmdir'] = 'asc'
 
         # Send the second query.
-        response_2 = next(query(request, 'gcmlimit', _QUERY_MAX), None)  # Only first result set is used
+        response_2 = next(legacyQuery(request, 'gcmlimit', WP_QUERY_MAX), None)  # Only first result set is used
         if response_2 is None:
             raise ValueError("Could not find thumbnail images for this category.")
         pages_2 = response_2['pages']

@@ -17,11 +17,10 @@ SECRET_KEY = os.environ['WIKIPICTUREGAME_SECRET_KEY']
 # SECURITY WARNING: don't run with debug turned on in production!
 if os.environ['WIKIPICTUREGAME_DEBUG'] == 'True':
     DEBUG = True
+    TEMPLATE_DEBUG = True
 else:
     DEBUG = False
-
-TEMPLATE_DEBUG = False
-
+    TEMPLATE_DEBUG = True
 
 ADMINS = (('craig', 'craigfisher256@gmail.com'))
 
@@ -56,24 +55,6 @@ ROOT_URLCONF = 'wikipicturegame.urls'
 
 WSGI_APPLICATION = 'wikipicturegame.wsgi.application'
 
-
-# Database
-# https://docs.djangoproject.com/en/1.7/ref/settings/#databases
-
-db_default = {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'wikipicturegame_db',
-        'HOST': '127.0.0.1',
-        'PORT': '5432',
-}
-
-db_default['USER'] = os.environ['WIKIPICTUREGAME_DB_USER']
-db_default['PASSWORD'] = os.environ['WIKIPICTUREGAME_DB_PASSWORD']
-
-DATABASES = {
-    'default': db_default
-}
-
 # Internationalization
 # https://docs.djangoproject.com/en/1.7/topics/i18n/
 
@@ -89,8 +70,10 @@ USE_TZ = True
 
 
 import dj_database_url
-DATABASES['default'] = dj_database_url.config(default=os.environ.get('WIKIPICTUREGAME_DATABASE_URL'),
-                                              engine='django.db.backends.postgresql_psycopg2')
+DATABASES = {}
+DATABASES['default'] = dj_database_url.config(
+                            default=os.environ.get('WIKIPICTUREGAME_DATABASE_URL'),
+                            engine='django.db.backends.postgresql_psycopg2')
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 

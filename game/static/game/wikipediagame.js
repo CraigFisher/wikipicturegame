@@ -83,7 +83,8 @@ function CategoryLoader(useDatabase) {
                 type: 'GET',
                 success: function(result) {
                     if (result.length === amount) {
-                        onSuccess(result);
+                        var combinedCategories = categories.concat(result);
+                        onSuccess(combinedCategories);
                     } else {
                         onFailure({
                             name: "requestCategoriesError",
@@ -151,6 +152,7 @@ function WikipediaClient() {
         $.ajax({
             method: 'GET',
             dataType: "jsonp",
+            cache: true,
             url: WP_ENDPOINT,
             data: request,
             success: function(response) {
@@ -250,6 +252,9 @@ function WikipediaClient() {
             var numReceived = 0;
 
             function combineRequests(response, category) {
+                if (!response.hasOwnProperty('pages')) {
+                    response.pages = {};
+                }
                 if (onFailureSent)
                     return;
                 numReceived++;
@@ -266,6 +271,15 @@ function WikipediaClient() {
         function onCategoryMembersSuccess(response, category) {
             if (onFailureSent)
                 return;
+            if ($.isEmptyObject(response.pages)) {
+                var error = { 
+                    name: "generateQuestionError",
+                    error: "Category: " + category + " returned no pages."
+                };
+                onFailure(error);
+                onFailureSent = true;
+                return;
+            }
             numRequestsReceived++;
             rememberedCategories[category] = new CategoryWrapper(response.pages, category);
             categoryDictionary[category] = rememberedCategories[category];
@@ -388,9 +402,10 @@ function WikipediaClient() {
 
 function WikipediaGame() {
     var MAX_TURNS = 10;
-    var CATEGORIES_PER_GAME = 2;        //TODO: make flexible       
-    var CATEGORIES_PER_QUESTION = 2;    //TODO: make flexible
-    var USE_DATABASE = true;           
+    var CATEGORIES_PER_GAME = 10;        //TODO: make flexible       
+    var CATEGORIES_PER_QUESTION = 5;    //TODO: make flexible
+    var USE_DATABASE = true;
+    var CATEGORY_GAME = false;
 
     var wikiClient = new WikipediaClient();
     var categoryLoader = new CategoryLoader(USE_DATABASE);
@@ -597,7 +612,11 @@ function WikipediaGame() {
             var label = choice.find('label');
             label.removeClass('correct');
             label.removeClass('incorrect');
-            label.text(nextQuestion.choices[index].title);
+            if (CATEGORY_GAME) {
+                label.text(nextQuestion.choices[index].category);
+            } else {
+                label.text(nextQuestion.choices[index].title);
+            }
 
             var anchor = choice.find('a');
             anchor.hide();
@@ -651,11 +670,24 @@ $(document).ready(function() {
     wikiGame.newGame();
 
     // TEST WIKI CLIENT
-    // var wikiClient = new WikipediaClient();
+    var wikiClient = new WikipediaClient();
     // wikiClient.generateQuestion(
-    //         ['Category:1955_deaths', 
-    //          'Category:California_counties', 
-    //          'Category:Basic_concepts_in_infinite_set_theory'], 
+    //         ['1955_deaths', 
+    //          'California_counties', 
+    //          'Basic_concepts_in_infinite_set_theory'], 
+    //         debugObject, 
+    //         debugObject
+    // );
+
+    // wikiClient.generateQuestion(
+    //         ['1955 deaths', 
+    //          'Fellows of Churchill College, Cambridge'], 
+    //         debugObject, 
+    //         debugObject
+    // );
+
+    // wikiClient.generateQuestion(
+    //         ['109'],
     //         debugObject, 
     //         debugObject
     // );

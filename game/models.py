@@ -8,3 +8,4 @@ class WikipediaCategory(models.Model):
 class RowCounts(models.Model):
     tablename = models.CharField(max_length=100)
     rowcount = models.BigIntegerField()
+    max_id = models.IntegerField(null=True)
