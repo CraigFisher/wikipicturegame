@@ -445,7 +445,7 @@ function WikipediaGame() {
         newGameButton.hide();
         submitButton.hide();
 
-        turnCount = 0;
+        turnCount = 1;
         correctCount = 0;
         wrongCount = 0;
 
@@ -536,7 +536,7 @@ function WikipediaGame() {
                     questionQueue.push(question);
                     
                     // If first question hasn't been shown yet.
-                    if (turnCount === 0) {
+                    if (turnCount === 1) {
                         nextQuestion = questionQueue.shift();
                         nextImage = imageQueue.shift();
                         advanceTurn();
